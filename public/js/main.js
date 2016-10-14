@@ -22550,30 +22550,51 @@ var Actions = require('../model/actions.jsx');
 var IngredientsStore = require('../model/ingredients-store.jsx');
 
 var List = React.createClass({
-    displayName: 'List',
+  displayName: 'List',
 
-    mixins: [Reflux.listenTo(IngredientsStore, 'onChange')],
+  mixins: [Reflux.listenTo(IngredientsStore, 'onChange')],
 
-    getInitialState: function () {
-        return { ingredients: [] };
-    },
-    onChange: function (event, ingredients) {
-        this.setState({ ingredients: ingredients });
-    },
-    componentWillMount: function () {
-        Actions.getIngredients();
-    },
-    render: function () {
-        var listItems = this.state.ingredients.map(function (item) {
-            return React.createElement(ListItem, { key: item.id, ingredient: item.text });
-        });
-
-        return React.createElement(
-            'ul',
-            null,
-            listItems
-        );
+  getInitialState: function () {
+    return { ingredients: [], newText: "" };
+  },
+  onChange: function (event, ingredients) {
+    this.setState({ ingredients: ingredients });
+  },
+  onInputChange: function (e) {
+    this.setState({ newText: e.target.value });
+  },
+  onClick: function (e) {
+    if (this.state.newText) {
+      Actions.postIngredient(this.state.newText);
     }
+    this.setState({ newText: "" });
+  },
+  componentWillMount: function () {
+    Actions.getIngredients();
+  },
+  render: function () {
+    var listItems = this.state.ingredients.map(function (item) {
+      return React.createElement(ListItem, { key: item.id, ingredient: item.text });
+    });
+
+    return React.createElement(
+      'div',
+      null,
+      React.createElement('input', { placeholder: 'Add Item',
+        value: this.state.newText,
+        onChange: this.onInputChange }),
+      React.createElement(
+        'button',
+        { onClick: this.onClick },
+        'Add Item'
+      ),
+      React.createElement(
+        'ul',
+        null,
+        listItems
+      )
+    );
+  }
 });
 
 module.exports = List;
@@ -22627,7 +22648,22 @@ var IngredientsStore = Reflux.createStore({
     }.bind(this));
   },
   postIngredient: function (text) {
-    fireUpdate();
+    if (!this.ingredients) {
+      this.ingredients = [];
+    }
+    var ingredient = {
+      "text": text,
+      "id": Math.floor(Date.now() / 1000) + text
+    };
+    this.ingredients.push(ingredient);
+
+    this.fireUpdate();
+
+    console.log("About to call the post");
+
+    HTTP.post('/ingredients', ingredient).then(function (response) {
+      this.getIngredients();
+    }.bind(this));
   },
   fireUpdate: function () {
     this.trigger('change', this.ingredients);
@@ -22645,6 +22681,20 @@ var httpservice = {
   get: function (url) {
     return fetch(baseUrl + url).then(function (response) {
       return response.json();
+    });
+  },
+  post: function (url, ingredient) {
+    console.log("Got to post " + baseUrl + url);
+
+    return fetch(baseUrl + url, {
+      headers: {
+        'Accept': 'text/plain',
+        'Content-Type': 'application/json'
+      },
+      method: 'post',
+      body: JSON.stringify(ingredient)
+    }).then(function (response) {
+      return response;
     });
   }
 };
